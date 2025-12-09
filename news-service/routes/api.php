@@ -9,8 +9,11 @@ Route::get('/ping', function () {
 // News API
 use App\Http\Controllers\NewsController;
 
-Route::get('/news', [NewsController::class, 'list']);
-Route::post('/news/{id}/like', [NewsController::class, 'like']);
+Route::get('/news', [NewsController::class, 'indexApi']);
+Route::post('/news', [NewsController::class, 'storeApi']);
+Route::get('/news/{id}', [NewsController::class, 'showApi']);
+Route::put('/news/{id}', [NewsController::class, 'updateApi']);
+Route::delete('/news/{id}', [NewsController::class, 'destroyApi']);
+// Additional API actions: view increment and like
 Route::post('/news/{id}/view', [NewsController::class, 'incrementView']);
-
-// Note: admin (web) resource routes moved to routes/web.php
+Route::post('/news/{id}/like', [NewsController::class, 'like']);

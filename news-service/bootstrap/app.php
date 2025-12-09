@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Support\Facades\Log;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,5 +16,23 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // ⚡ Custom 404 untuk API routes
+        $exceptions->render(function (
+            \Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e,
+            $request
+        ) {
+            Log::error("API 404 - Endpoint tidak ditemukan: " . $request->fullUrl());
+
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'API endpoint not found'
+                ], 404);
+            }
+        });
+
+        // ⚡ Log ERROR selain 404
+        $exceptions->report(function (\Throwable $e) {
+            Log::error("ERROR: " . $e->getMessage());
+        });
     })->create();

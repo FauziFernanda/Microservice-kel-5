@@ -5,18 +5,144 @@ namespace App\Http\Controllers;
 use App\Models\News;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class NewsController extends Controller
 {
+
+    public function indexApi()
+    {
+        Log::info("API: Fetching news list");
+
+        $news = News::all();
+
+        if ($news->isEmpty()) {
+            Log::warning("API: No news found");
+        }
+
+        Log::info("API: Returning JSON response");
+
+        return response()->json([
+            'success' => true,
+            'data' => $news
+        ], 200);
+    }
+    public function storeApi(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'date' => 'required|date',
+            ]);
+
+            if ($validator->fails()) {
+                Log::error("API Validation Error", $validator->errors()->toArray());
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $validated = $validator->validated();
+
+            $validated['created_by'] = Auth::id() ?: null;
+            
+            $news = News::create($validated);
+
+            return response()->json($news, 201);
+
+        } catch (\Exception $e) {
+            Log::error("API Error", ['message' => $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    public function showApi($id)
+    {
+        try {
+            $news = News::findOrFail($id);
+
+            Log::info("API: Retrieved news item", ['id' => $id]);
+
+            return response()->json($news, 200);
+
+        } catch (ModelNotFoundException $e) {
+            Log::warning("API: News not found", ['id' => $id]);
+            return response()->json(['error' => 'News not found'], 404);
+
+        } catch (\Exception $e) {
+            Log::error("API: Error fetching news", ['message' => $e->getMessage()]);
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+    public function updateApi(Request $request, $id)
+    {
+        try {
+            $news = News::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'title' => 'sometimes|required|string|max:255',
+                'description' => 'sometimes|required|string',
+                'date' => 'sometimes|required|date',
+            ]);
+
+            if ($validator->fails()) {
+                Log::warning("API: Validation failed on update", $validator->errors()->toArray());
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $news->update($validator->validated());
+
+            Log::info("API: News updated", ['id' => $id]);
+
+            return response()->json($news, 200);
+
+        } catch (ModelNotFoundException $e) {
+            Log::warning("API: Update failed, news not found", ['id' => $id]);
+            return response()->json(['error' => 'News not found'], 404);
+
+        } catch (\Exception $e) {
+            Log::error("API: Update error", ['message' => $e->getMessage()]);
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+    public function destroyApi($id)
+    {
+        try {
+            $news = News::findOrFail($id);
+
+            $news->delete();
+
+            Log::info("API: News deleted", ['id' => $id]);
+
+            return response()->json(['message' => 'News deleted successfully'], 200);
+
+        } catch (ModelNotFoundException $e) {
+            Log::warning("API: Delete failed, news not found", ['id' => $id]);
+            return response()->json(['error' => 'News not found'], 404);
+
+        } catch (\Exception $e) {
+            Log::error("API: Delete error", ['message' => $e->getMessage()]);
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+
     // ADMIN: List all news
     public function index()
     {
-        $news = News::with('creator')->orderByDesc('date')->paginate(10);
-        $total = News::count();
-        return view('admin.news.index', compact('news', 'total'));
+        try {
+            Log::info('Fetching all news articles');
+            $news = News::with('creator')->orderByDesc('date')->paginate(10);
+            $total = News::count();
+            Log::info('Successfully fetched news articles', ['total' => $total, 'page' => request()->get('page', 1)]);
+            return view('admin.news.index', compact('news', 'total'));
+        } catch (\Exception $e) {
+            Log::error('Error fetching news articles', ['error' => $e->getMessage()]);
+            return redirect()->route('admin.news.index')->with('error', 'Failed to load news');
+        }
     }
 
     // ADMIN: Show create form
@@ -28,18 +154,33 @@ class NewsController extends Controller
     // ADMIN: Store news
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'description' => 'required|string',
-            'date' => 'required|date',
-        ]);
-        if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('news_images', 'public');
+        try {
+            Log::info('Creating new news article', ['title' => $request->input('title')]);
+            
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'description' => 'required|string',
+                'date' => 'required|date',
+            ]);
+            
+            if ($request->hasFile('image')) {
+                $validated['image'] = $request->file('image')->store('news_images', 'public');
+                Log::info('Image uploaded successfully', ['image' => $validated['image']]);
+            }
+            
+            $validated['created_by'] = Auth::id() ?: null;
+            $news = News::create($validated);
+            
+            Log::info('News article created successfully', ['id' => $news->id, 'title' => $news->title]);
+            return redirect()->route('admin.news.index')->with('success', 'News created successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Validation error while creating news', ['errors' => $e->errors()]);
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Error creating news article', ['error' => $e->getMessage()]);
+            return redirect()->back()->with('error', 'Failed to create news');
         }
-        $validated['created_by'] = Auth::id() ?: null;
-        News::create($validated);
-        return redirect()->route('admin.news.index')->with('success', 'News created successfully.');
     }
 
     // ADMIN: Show edit form
@@ -51,70 +192,132 @@ class NewsController extends Controller
     // ADMIN: Update news
     public function update(Request $request, News $news)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'description' => 'required|string',
-            'date' => 'required|date',
-        ]);
-        if ($request->hasFile('image')) {
-            if ($news->image) Storage::disk('public')->delete($news->image);
-            $validated['image'] = $request->file('image')->store('news_images', 'public');
+        try {
+            Log::info('Updating news article', ['id' => $news->id, 'title' => $news->title]);
+            
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'description' => 'required|string',
+                'date' => 'required|date',
+            ]);
+            
+            if ($request->hasFile('image')) {
+                if ($news->image) Storage::disk('public')->delete($news->image);
+                $validated['image'] = $request->file('image')->store('news_images', 'public');
+                Log::info('Image updated for news', ['id' => $news->id, 'image' => $validated['image']]);
+            }
+            
+            $news->update($validated);
+            Log::info('News article updated successfully', ['id' => $news->id]);
+            return redirect()->route('admin.news.index')->with('success', 'News updated successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Validation error while updating news', ['id' => $news->id, 'errors' => $e->errors()]);
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Error updating news article', ['id' => $news->id, 'error' => $e->getMessage()]);
+            return redirect()->back()->with('error', 'Failed to update news');
         }
-        $news->update($validated);
-        return redirect()->route('admin.news.index')->with('success', 'News updated successfully.');
     }
 
     // ADMIN: Delete news
     public function destroy(News $news)
     {
-        if ($news->image) Storage::disk('public')->delete($news->image);
-        $news->delete();
-        return redirect()->route('admin.news.index')->with('success', 'News deleted successfully.');
+        try {
+            Log::info('Deleting news article', ['id' => $news->id, 'title' => $news->title]);
+            
+            if ($news->image) {
+                Storage::disk('public')->delete($news->image);
+                Log::info('Image deleted for news', ['id' => $news->id]);
+            }
+            
+            $news->delete();
+            Log::info('News article deleted successfully', ['id' => $news->id]);
+            return redirect()->route('admin.news.index')->with('success', 'News deleted successfully.');
+        } catch (\Exception $e) {
+            Log::error('Error deleting news article', ['id' => $news->id, 'error' => $e->getMessage()]);
+            return redirect()->back()->with('error', 'Failed to delete news');
+        }
     }
 
     // API: List news for student (JSON) with Correlation ID support
     public function list(Request $request)
     {
-        $correlationId = $this->getOrCreateCorrelationId($request);
-        // For API consumers return JSON, but if the request comes from a browser
-        // (Accept: text/html) return the admin view so the endpoint is browser-friendly.
-        $news = News::with('creator')->orderByDesc('date')->paginate(10);
-        $total = News::count();
-        // If client expects JSON, return JSON
-        if ($request->wantsJson()) {
-            $news = News::orderByDesc('date')->get();
-            return response()->json($news)->header('X-Correlation-ID', $correlationId);
+        try {
+            $correlationId = $this->getOrCreateCorrelationId($request);
+            Log::info('API: Fetching news list', ['correlation_id' => $correlationId]);
+            
+            // For API consumers return JSON, but if the request comes from a browser
+            // (Accept: text/html) return the admin view so the endpoint is browser-friendly.
+            $news = News::with('creator')->orderByDesc('date')->paginate(10);
+            $total = News::count();
+            
+            // If client expects JSON, return JSON
+            if ($request->wantsJson()) {
+                $news = News::orderByDesc('date')->get();
+                Log::info('API: Returning JSON response', ['count' => $news->count(), 'correlation_id' => $correlationId]);
+                return response()->json($news)->header('X-Correlation-ID', $correlationId);
+            }
+            
+            // Otherwise return the admin HTML view (same as admin index)
+            Log::info('API: Returning HTML response', ['correlation_id' => $correlationId]);
+            return response()->view('admin.news.index', compact('news', 'total'))
+                ->header('X-Correlation-ID', $correlationId);
+        } catch (\Exception $e) {
+            Log::error('API: Error fetching news list', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to fetch news'], 500)
+                ->header('X-Correlation-ID', $this->getOrCreateCorrelationId($request));
         }
-        // Otherwise return the admin HTML view (same as admin index)
-        return response()->view('admin.news.index', compact('news', 'total'))
-            ->header('X-Correlation-ID', $correlationId);
     }
 
     // API: Like news (requires authenticated user)
     public function like(Request $request, $id)
     {
-        $correlationId = $this->getOrCreateCorrelationId($request);
-        $news = News::findOrFail($id);
-        $user = Auth::user();
-        if (!$user) {
-            return response()->json(['error' => 'Unauthenticated.'], 401)->header('X-Correlation-ID', $correlationId);
-        }
-        if ($news->likedUsers()->where('user_id', $user->id)->exists()) {
+        try {
+            $correlationId = $this->getOrCreateCorrelationId($request);
+            Log::info('API: Like news request received', ['news_id' => $id, 'correlation_id' => $correlationId]);
+            
+            $news = News::findOrFail($id);
+            $user = Auth::user();
+            
+            if (!$user) {
+                Log::warning('API: Like attempt without authentication', ['news_id' => $id, 'correlation_id' => $correlationId]);
+                return response()->json(['error' => 'Unauthenticated.'], 401)->header('X-Correlation-ID', $correlationId);
+            }
+            
+            if ($news->likedUsers()->where('user_id', $user->id)->exists()) {
+                Log::info('API: User already liked this news', ['news_id' => $id, 'user_id' => $user->id, 'correlation_id' => $correlationId]);
+                return response()->json(['likes' => $news->likes])->header('X-Correlation-ID', $correlationId);
+            }
+            
+            $news->likedUsers()->attach($user->id);
+            $news->increment('likes');
+            Log::info('API: News liked successfully', ['news_id' => $id, 'user_id' => $user->id, 'likes' => $news->likes, 'correlation_id' => $correlationId]);
             return response()->json(['likes' => $news->likes])->header('X-Correlation-ID', $correlationId);
+        } catch (\Exception $e) {
+            Log::error('API: Error liking news', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to like news'], 500)
+                ->header('X-Correlation-ID', $this->getOrCreateCorrelationId($request));
         }
-        $news->likedUsers()->attach($user->id);
-        $news->increment('likes');
-        return response()->json(['likes' => $news->likes])->header('X-Correlation-ID', $correlationId);
     }
 
     // API: Increment view (tracks Correlation ID)
     public function incrementView(Request $request, $id)
     {
-        $correlationId = $this->getOrCreateCorrelationId($request);
-        $news = News::findOrFail($id);
-        $news->increment('views');
-        return response()->json(['views' => $news->views])->header('X-Correlation-ID', $correlationId);
+        try {
+            $correlationId = $this->getOrCreateCorrelationId($request);
+            Log::info('API: Increment view request received', ['news_id' => $id, 'correlation_id' => $correlationId]);
+            
+            $news = News::findOrFail($id);
+            $news->increment('views');
+            
+            Log::info('API: View incremented successfully', ['news_id' => $id, 'views' => $news->views, 'correlation_id' => $correlationId]);
+            return response()->json(['views' => $news->views])->header('X-Correlation-ID', $correlationId);
+        } catch (\Exception $e) {
+            Log::error('API: Error incrementing view', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to increment view'], 500)
+                ->header('X-Correlation-ID', $this->getOrCreateCorrelationId($request));
+        }
     }
 
     // Get placeholder image
