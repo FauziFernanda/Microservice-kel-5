@@ -1,0 +1,39 @@
+/* Minimal fallback CSS so pages render without running Vite */
+:root{
+  --bg:#0f1720;
+  --panel:#18161d;
+  --accent:#ec4899;
+  --muted:#9ca3af;
+  --text:#f8fafc;
+}
+html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans',sans-serif;background:var(--bg);color:var(--text)}
+.container{max-width:1200px;margin:0 auto;padding:1.5rem}
+h1{font-size:2rem;margin-bottom:0.5rem}
+a{color:var(--accent)}
+.card{background:var(--panel);border:1px solid rgba(236,72,153,0.12);padding:1rem;border-radius:0.75rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+.muted{color:var(--muted)}
+.btn{background:var(--accent);color:#fff;padding:.6rem 1rem;border-radius:.5rem;text-decoration:none}
+.mt-4{margin-top:1rem}
+.mb-4{margin-bottom:1rem}
+.text-sm{font-size:.875rem}
+.text-xs{font-size:.75rem}
+.flex{display:flex}
+.justify-between{justify-content:space-between}
+.gap-4{gap:1rem}
+.rounded{border-radius:.5rem}
+.w-32{width:8rem}
+.h-40{height:10rem}
+.object-cover{object-fit:cover}
+
+/* Sidebar basics to match component classes */
+.sidebar{position:fixed;left:0;top:0;height:100vh;background:var(--panel);color:var(--text);border-right:1px solid rgba(236,72,153,0.08);z-index:40;overflow:hidden}
+.sidebar.w-64{width:16rem}
+.sidebar.w-16{width:4rem}
+.sidebar .p-4{padding:1rem}
+.main-content{min-height:100vh}
+.no-scrollbar::-webkit-scrollbar{display:none}
+.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+.rounded-full{border-radius:9999px}
+.text-pink-500{color:var(--accent)}
+.border-pink-500\/20{border-color:rgba(236,72,153,0.12)}
