@@ -1,0 +1,1 @@
+Route::get('/call-both', [GatewayController::class, 'callBoth'])->middleware('correlation');
