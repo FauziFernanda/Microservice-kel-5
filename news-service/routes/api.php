@@ -17,3 +17,5 @@ Route::delete('/news/{id}', [NewsController::class, 'destroyApi']);
 // Additional API actions: view increment and like
 Route::post('/news/{id}/view', [NewsController::class, 'incrementView']);
 Route::post('/news/{id}/like', [NewsController::class, 'like']);
+// Lightweight session notification endpoint (called by gateway after login)
+Route::post('/session', [NewsController::class, 'sessionNotify']);

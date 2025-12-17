@@ -16,20 +16,23 @@ class NewsController extends Controller
 
     public function indexApi()
     {
-        Log::info("API: Fetching news list");
+        // Ensure we have a correlation id (from header or generated) and include it in logs/responses
+        $correlationId = $this->getOrCreateCorrelationId(request());
+
+        Log::info("API: Fetching news list", ['correlation_id' => $correlationId]);
 
         $news = News::all();
 
         if ($news->isEmpty()) {
-            Log::warning("API: No news found");
+            Log::warning("API: No news found", ['correlation_id' => $correlationId]);
         }
 
-        Log::info("API: Returning JSON response");
+        Log::info("API: Returning JSON response", ['count' => $news->count(), 'correlation_id' => $correlationId]);
 
         return response()->json([
             'success' => true,
             'data' => $news
-        ], 200);
+        ], 200)->header('X-Correlation-ID', $correlationId);
     }
     public function storeApi(Request $request)
     {
@@ -54,8 +57,10 @@ class NewsController extends Controller
             return response()->json($news, 201);
 
         } catch (\Exception $e) {
-            Log::error("API Error", ['message' => $e->getMessage()]);
-            return response()->json(['error' => $e->getMessage()], 500);
+            $corr = $this->getOrCreateCorrelationId($request);
+            Log::error("API Error", ['message' => $e->getMessage(), 'correlation_id' => $corr]);
+            return response()->json(['error' => 'Internal server error', 'correlation_id' => $corr], 500)
+                ->header('X-Correlation-ID', $corr);
         }
     }
     public function showApi($id)
@@ -68,12 +73,16 @@ class NewsController extends Controller
             return response()->json($news, 200);
 
         } catch (ModelNotFoundException $e) {
-            Log::warning("API: News not found", ['id' => $id]);
-            return response()->json(['error' => 'News not found'], 404);
+            $corr = $this->getOrCreateCorrelationId(request());
+            Log::warning("API: News not found", ['id' => $id, 'correlation_id' => $corr]);
+            return response()->json(['error' => 'News not found', 'correlation_id' => $corr], 404)
+                ->header('X-Correlation-ID', $corr);
 
         } catch (\Exception $e) {
-            Log::error("API: Error fetching news", ['message' => $e->getMessage()]);
-            return response()->json(['error' => 'Internal server error'], 500);
+            $corr = $this->getOrCreateCorrelationId(request());
+            Log::error("API: Error fetching news", ['message' => $e->getMessage(), 'correlation_id' => $corr]);
+            return response()->json(['error' => 'Internal server error', 'correlation_id' => $corr], 500)
+                ->header('X-Correlation-ID', $corr);
         }
     }
     public function updateApi(Request $request, $id)
@@ -268,6 +277,15 @@ class NewsController extends Controller
             return response()->json(['error' => 'Failed to fetch news'], 500)
                 ->header('X-Correlation-ID', $this->getOrCreateCorrelationId($request));
         }
+    }
+
+    // Endpoint: accept session/login notifications from gateway (best-effort)
+    public function sessionNotify(Request $request)
+    {
+        $correlationId = $this->getOrCreateCorrelationId($request);
+        Log::info('API: Session notification received', ['correlation_id' => $correlationId, 'payload' => $request->all()]);
+
+        return response()->json(['ok' => true])->header('X-Correlation-ID', $correlationId);
     }
 
     // API: Like news (requires authenticated user)

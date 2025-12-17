@@ -206,6 +206,23 @@ class NewsControllerTest extends TestCase
     }
 
     /**
+     * Test: Session notification endpoint accepts correlation id and echoes it
+     */
+    public function test_session_notification_endpoint_handles_correlation_id()
+    {
+        $corr = 'test-session-corr-123';
+
+        $response = $this->postJson('/api/session', [], ['X-Correlation-ID' => $corr]);
+
+        $response->assertStatus(200);
+        $this->assertEquals($corr, $response->headers->get('x-correlation-id'));
+
+        // Also ensure it generates one when missing
+        $resp2 = $this->postJson('/api/session');
+        $this->assertNotEmpty($resp2->headers->get('x-correlation-id'));
+    }
+
+    /**
      * Test: API - Like news without authentication fails
      */
     public function test_api_like_without_auth_returns_401()

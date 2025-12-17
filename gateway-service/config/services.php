@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'user_service' => [
+        'url' => env('USER_SERVICE_URL', 'http://localhost:8002'),
+    ],
+
+    'news_service' => [
+        'url' => env('NEWS_SERVICE_URL', 'http://localhost:8003'),
+    ],
+
 ];

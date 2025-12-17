@@ -1,0 +1,17 @@
+<?php
+
+namespace App\Logging;
+
+class CorrelationTap
+{
+    public function __invoke($logger)
+    {
+        // Accept either Monolog\Logger or Illuminate\Log\Logger implementations
+        $logger->pushProcessor(function ($record) {
+            $corr = app()->bound('correlation_id') ? app('correlation_id') : null;
+            $record['extra']['correlation_id'] = $corr;
+            $record['extra']['service'] = config('app.name', 'gateway-service');
+            return $record;
+        });
+    }
+}

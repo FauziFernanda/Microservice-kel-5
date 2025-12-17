@@ -11,13 +11,13 @@
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+-   [Simple, fast routing engine](https://laravel.com/docs/routing).
+-   [Powerful dependency injection container](https://laravel.com/docs/container).
+-   Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+-   Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+-   Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+-   [Robust background job processing](https://laravel.com/docs/queues).
+-   [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
@@ -33,14 +33,14 @@ We would like to extend our thanks to the following sponsors for funding Laravel
 
 ### Premium Partners
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+-   **[Vehikl](https://vehikl.com)**
+-   **[Tighten Co.](https://tighten.co)**
+-   **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
+-   **[64 Robots](https://64robots.com)**
+-   **[Curotec](https://www.curotec.com/services/technologies/laravel)**
+-   **[DevSquad](https://devsquad.com/hire-laravel-developers)**
+-   **[Redberry](https://redberry.international/laravel-development)**
+-   **[Active Logic](https://activelogic.com)**
 
 ## Contributing
 
@@ -57,3 +57,34 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+## Gateway proxy (service integration)
+
+This `gateway-service` proxies authentication and news requests to the other microservices in the system.
+
+-   Environment variables (add to `.env`):
+
+    -   `USER_SERVICE_URL` (e.g. `http://localhost:8002`)
+    -   `NEWS_SERVICE_URL` (e.g. `http://localhost:8003`)
+
+-   Routes added (examples):
+    -   `POST /api/register` → forwarded to `USER_SERVICE_URL/api/auth/register`
+    -   `POST /api/login` → forwarded to `USER_SERVICE_URL/api/auth/login` (returns token)
+    -   `ANY /api/news/*` → forwarded to `NEWS_SERVICE_URL/api/*` (Authorization header forwarded from request or session)
+
+Quick manual test examples (assuming services are running):
+
+```bash
+# register
+curl -X POST http://localhost:8001/api/register -d '{"email":"a@b.com","password":"secret"}' -H 'Content-Type: application/json'
+
+# login
+curl -X POST http://localhost:8001/api/login -d '{"email":"a@b.com","password":"secret"}' -H 'Content-Type: application/json'
+
+# access news endpoint with token
+curl http://localhost:8001/api/news/dashboard -H 'Authorization: Bearer <token>'
+```
+
+The gateway contains a small middleware `AttachAuthToken` that will attach an `access_token` stored in session as `Authorization: Bearer ...` when the incoming request does not include the header.
